@@ -1,0 +1,46 @@
+{
+  "id": "lancer-motley-narrative-rules",
+  "title": "LANCER Motley Narrative Rules",
+  "description": "Replaces the LANCER system's skill-trigger check with a d6 dice-pool house rule (roll 1 + rank d6, +Accuracy / -Difficulty, count 4+ successes, 6-only when Hard) and displays trigger ranks as +{rank}d6 instead of +2/+4/+6. Installs alongside the lancer system; no macro or sheet edits required.",
+  "version": "#{VERSION}#",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
+  "authors": [
+    {
+      "name": "Shteb",
+      "url": "https://github.com/Shteb"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "lancer",
+        "type": "system",
+        "compatibility": {
+          "minimum": "3.0.0"
+        }
+      }
+    ],
+    "requires": []
+  },
+  "esmodules": [
+    "scripts/module.js"
+  ],
+  "styles": [
+    "styles/module.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "languages/en.json"
+    }
+  ],
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "license": "LICENSE",
+  "readme": "README.md"
+}

@@ -1,0 +1,21 @@
+{
+  "LMNR.settings.skillDicePool.name": "Dice Pool Skill Resolution",
+  "LMNR.settings.skillDicePool.hint": "When enabled, skill checks will roll a number of d6 equal to the skill rank instead of a single d20.",
+  "LMNR.dialog.windowTitle": "Skill Trigger",
+  "LMNR.dialog.accuracy": "Accuracy",
+  "LMNR.dialog.difficulty": "Difficulty",
+  "LMNR.dialog.hard": "Hard",
+  "LMNR.dialog.total": "Total:",
+  "LMNR.dialog.confirm": "Roll",
+  "LMNR.dialog.cancel": "Cancel",
+  "LMNR.dialog.otherSkill": "Other Skill",
+  "LMNR.card.heading": "Skill Check",
+  "LMNR.card.used": "Used: {name}",
+  "LMNR.card.diceRolled": "Dice Rolled",
+  "LMNR.card.hard": "Hard",
+  "LMNR.card.yes": "Yes",
+  "LMNR.card.no": "No",
+  "LMNR.card.successes": "Successes: {n}",
+  "LMNR.card.netZeroDice": "{n}d6 keep lowest",
+  "LMNR.display.itemReadoutTooltip": "Skill trigger contributes +{rank}d6 to the dice pool (the base 1d6 is implicit)."
+}
