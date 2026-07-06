@@ -22,6 +22,17 @@ export function registerSettings() {
       Hooks.callAll(AUTOMATION.REFRESH_HOOK);
     },
   });
+
+  game.settings.register(MODULE_ID, SETTINGS.SHOW_PILOT_STRESS, {
+    name: "LMNR.settings.showPilotStress.name",
+    hint: "LMNR.settings.showPilotStress.hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    requiresReload: false,
+    onChange: () => rerenderOpenSheets(),
+  });
 }
 
 /**
@@ -33,6 +44,18 @@ export function isDicePoolEnabled() {
     return game.settings.get(MODULE_ID, SETTINGS.SKILL_DICE_POOL) === true;
   } catch (_e) {
     // Setting not registered yet - assume the module's default (house rule on).
+    return true;
+  }
+}
+
+/**
+ * @returns {boolean} true when Pilot Stress should be shown/editable even without a Bond. Defaults to
+ *   true if the setting has not been registered yet (matches the module default).
+ */
+export function isPilotStressEnabled() {
+  try {
+    return game.settings.get(MODULE_ID, SETTINGS.SHOW_PILOT_STRESS) === true;
+  } catch (_e) {
     return true;
   }
 }

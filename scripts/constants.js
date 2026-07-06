@@ -13,6 +13,8 @@ export const LOG_PREFIX = "Lancer Motley | ";
 export const SETTINGS = {
   /** boolean: when true, skill triggers use the d6 dice pool; when false, stock 1d20+rank*2. */
   SKILL_DICE_POOL: "skillDicePool",
+  /** boolean: when true, Pilot Stress is shown/editable even when the pilot has no Bond. */
+  SHOW_PILOT_STRESS: "showPilotStress",
 };
 
 /** House-rule constants. */
@@ -36,6 +38,37 @@ export const LANCER_INTEGRATION = {
     SHOW_HUD: "showStatRollHUD",
     ROLL_CHECK: "rollCheck",
     PRINT_CARD: "printStatRollCard",
+  },
+};
+
+/**
+ * Always-visible Pilot Stress (see scripts/pilot-stress.js).
+ */
+export const PILOT_STRESS = {
+  /** The pilot data-model counter object (has `.value` / `.min` / `.max`). */
+  PATH: "system.bond_state.stress",
+  /** The update path for persisting a new Stress value. */
+  VALUE_PATH: "system.bond_state.stress.value",
+  /** Marker class on the injected control: idempotency guard + removal handle. */
+  MARKER: "lmnr-pilot-stress",
+  /** Stock (Handlebars) pilot sheet. */
+  STOCK: {
+    /** Narrative tab wrapper; the injected counter card is placed here (where the bond card sits). */
+    NARRATIVE_TAB: '.tab.pilot[data-tab="narrative"]',
+    /** The registered Handlebars helper (`pilot.hbs` line 164) that builds the native hex counter. */
+    COUNTER_HELPER: "generic-counter",
+    /** A single hex pip; `data-available="true"` = filled. Click toggles one point. */
+    HEX: ".counter-hex",
+    /** The +/- stepper buttons that flank the hex row. */
+    MINUS_BUTTON: ".clicker-minus-button",
+    PLUS_BUTTON: ".clicker-plus-button",
+  },
+  /** Alt sheet (Svelte). Selectors mirror `StatusBar.svelte` so the injected bar matches the theme. */
+  ALT: {
+    /** The sidebar "Pilot Bars" container; the injected Stress bar is appended here. */
+    BARS_CONTAINER: ".la-damage",
+    /** Heat-coloured fill class the native Stress bar uses. */
+    BAR_FILL: "la-bckg-bar-heat",
   },
 };
 

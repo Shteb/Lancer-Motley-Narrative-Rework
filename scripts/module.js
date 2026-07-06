@@ -8,6 +8,7 @@ import { MODULE_ID, LOG_PREFIX, LANCER_INTEGRATION } from "./constants.js";
 import { registerSettings } from "./settings.js";
 import { installSkillFlowOverride, installOtherSkillFlowOverride } from "./skill-flow.js";
 import { registerDisplayHooks } from "./skill-display.js";
+import { registerPilotStressHooks } from "./pilot-stress.js";
 import { registerTahDisplay } from "./tah-display.js";
 
 /** Tracks whether the flow override has been installed, so the ready-fallback doesn't double up. */
@@ -23,6 +24,7 @@ Hooks.once("init", () => {
   console.log(`${LOG_PREFIX}Initialising ${MODULE_ID}.`);
   registerSettings();
   registerDisplayHooks();
+  registerPilotStressHooks();
 });
 
 Hooks.once("ready", () => {

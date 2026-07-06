@@ -1,14 +1,12 @@
 /**
- * Dice-pool skill-check resolution - the behavioural core of the module and the canonical
- * implementation of the house rules (pool maths, success counting and chat-card information).
- * The chat card uses inline styles so persisted messages still render correctly if the module
- * is later disabled.
+ * Dice-pool skill-check resolution: pool maths, success counting, prompt and chat card.
+ * The chat card uses inline styles so persisted messages still render if the module is disabled.
  */
 
 import { HOUSE_RULES } from "./constants.js";
 
-/** The currently-open skill-check dialog instance, so a new prompt can replace any open one. */
-let activeDialog = null;
+/** The currently-open skill-check HUD `{ zone, resolve, cleanup }`, so a new prompt can replace it. */
+let activeHud = null;
 
 /** Minimal HTML escape for interpolating (world-authored) skill names into card/dialog markup. */
 function escapeHtml(value) {
@@ -50,17 +48,21 @@ export async function resolveSkillCheck({ rank, accuracy, difficulty, hard }) {
   return { roll, faces, successes, totalDice: poolDice, threshold, hard: Boolean(hard), netZero };
 }
 
+/** Read the current Foundry sidebar width, used to tuck the HUD against its left edge. */
+function sidebarWidth() {
+  return document.getElementById("sidebar")?.offsetWidth || 0;
+}
+
 /**
- * Show the Accuracy/Difficulty/Hard prompt for a skill trigger: name, A/D steppers, Hard
- * toggle, live "Total: Nd6" readout, styled with the LANCER system's own classes.
+ * Show the Accuracy/Difficulty/Hard prompt for a skill trigger: name, A/D steppers, Hard toggle,
+ * live "Total: Nd6" readout. Rendered as a self-mounted sliding HUD anchored bottom-right (tucked
+ * against the sidebar), styled with the LANCER system's own classes so it matches the native prompt.
  * @returns {Promise<{ accuracy, difficulty, hard } | null>} input, or null if cancelled/closed.
  */
 export async function promptSkillCheck({ skillName, rank }) {
-  // Only one skill-check dialog at a time: close any still-open one from a previous invocation.
-  // (The closed dialog's prompt resolves to null, so its flow aborts cleanly.)
-  if (activeDialog?.element?.isConnected) {
-    try { await activeDialog.close(); } catch (_e) { /* already closing */ }
-  }
+  // Only one skill-check HUD at a time: dismiss any still-open one from a previous invocation.
+  // (Its prompt resolves to null, so its flow aborts cleanly.)
+  if (activeHud) activeHud.resolve(null);
 
   const L = key => game.i18n.localize(key);
   const basePool = HOUSE_RULES.BASE_DICE + (Number(rank) || 0);
@@ -86,60 +88,97 @@ export async function promptSkillCheck({ skillName, rank }) {
     </div>
   `;
 
+  // Reuses the system's HUD structure (`.lancer-header` / `.lancer-hud-body` / `.lancer-hud-buttons`)
+  // so it inherits the theme.
   const content = `
-    <div class="lancer lancer-hud" style="display:flex; flex-direction:column; gap:10px; padding:6px 4px;">
-      <div style="text-align:center; font-size:1.38em; font-weight:bold;">
-        <i class="fas fa-dice-d20"></i> ${escapeHtml(skillName)}
-        <span style="opacity:0.75;">${rankLabel}</span>
-      </div>
-      <hr style="border:none; border-top:1px solid var(--primary-color, #666); width:100%; margin:0;">
-      <div style="display:flex; justify-content:space-between; gap:16px;">
-        ${stepper("accuracy", L("LMNR.dialog.accuracy"))}
-        ${stepper("difficulty", L("LMNR.dialog.difficulty"))}
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
-        <label class="container" style="flex:1; display:flex; align-items:center; gap:6px; cursor:pointer;">
-          <input type="checkbox" name="hard">
-          <span style="text-wrap:nowrap;">${L("LMNR.dialog.hard")}</span>
-        </label>
-        <div style="flex:1; text-align:center;">
-          ${L("LMNR.dialog.total")} <b><span data-readout="total" style="font-size:1.3em;">${basePool}d6</span></b>
+    <form class="lancer lancer-hud window-content" style="width:340px; height:auto; display:flex; flex-direction:column; margin:0;">
+      <header class="lancer-header lancer-mini-header">
+        <i class="fas fa-dice-d20"></i>
+        <span>${escapeHtml(skillName)} <span style="opacity:0.75;">${rankLabel}</span></span>
+      </header>
+      <div class="lancer-hud-body" style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; gap:16px;">
+          ${stepper("accuracy", L("LMNR.dialog.accuracy"))}
+          ${stepper("difficulty", L("LMNR.dialog.difficulty"))}
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+          <label class="container" style="flex:1; display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" name="hard">
+            <span style="text-wrap:nowrap;">${L("LMNR.dialog.hard")}</span>
+          </label>
+          <div style="flex:1; text-align:center;">
+            ${L("LMNR.dialog.total")} <b><span data-readout="total" style="font-size:1.3em;">${basePool}d6</span></b>
+          </div>
         </div>
       </div>
-    </div>
+      <div class="lancer-hud-buttons">
+        <button class="lancer-button" type="button" data-action="confirm">${L("LMNR.dialog.confirm")}</button>
+        <button class="lancer-button" type="button" data-action="cancel">${L("LMNR.dialog.cancel")}</button>
+      </div>
+    </form>
   `;
 
-  // DialogV2.wait resolves with the value the chosen button's callback returns, or `false`/`null` if
-  // the dialog is dismissed (rejectClose:false). We return the gathered input from the Confirm button.
-  const result = await foundry.applications.api.DialogV2.wait({
-    window: { title: `${L("LMNR.dialog.windowTitle")} - ${skillName}` },
-    classes: ["lancer"],
-    position: { width: 400 },
-    content,
-    rejectClose: false,
-    buttons: [
-      {
-        action: "confirm",
-        label: L("LMNR.dialog.confirm"),
-        default: true,
-        callback: (_event, _button, dialog) => readInputs(dialog.element),
-      },
-      {
-        action: "cancel",
-        label: L("LMNR.dialog.cancel"),
-      },
-    ],
-    render: (_event, dialog) => {
-      activeDialog = dialog;
-      attachDialogListeners(dialog.element, Number(rank) || 0);
-    },
-  });
+  // Positioning container mirrors the system's `#hudzone`: fixed bottom-right, tucked against the
+  // sidebar, click-through except for the panel itself.
+  const zone = document.createElement("div");
+  zone.id = "lmnr-hud-zone";
+  zone.className = "lancer-hud-zone";
+  zone.style.cssText = [
+    "position:fixed", "bottom:0", `right:${sidebarWidth()}px`,
+    "display:flex", "align-items:flex-end", "flex-direction:row-reverse",
+    "pointer-events:none", "z-index:999", "transition:right 600ms, opacity 200ms",
+  ].join(";");
+  zone.innerHTML =
+    `<div class="component" style="pointer-events:initial; padding-right:12px; ` +
+    `filter:drop-shadow(0.4rem 0.4rem 0.6rem #333);">${content}</div>`;
+  document.body.appendChild(zone);
 
-  // `confirm` returns the input object; `cancel`/dismiss return the action string or false.
-  return result && typeof result === "object" ? result : null;
+  const panel = zone.querySelector("form");
+
+  return new Promise(resolve => {
+    // Re-tuck against the sidebar when it collapses/expands. The 200ms delay waits out the sidebar's own
+    // width transition (matching the system) before re-reading; `transition:right` produces the glide.
+    const onCollapse = () => setTimeout(() => { zone.style.right = `${sidebarWidth()}px`; }, 200);
+    Hooks.on("collapseSidebar", onCollapse);
+
+    const onKeyDown = ev => {
+      if (ev.key === "Escape") { ev.preventDefault(); finish(null); }
+      else if (ev.key === "Enter") { ev.preventDefault(); finish(readInputs(panel)); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    const cleanup = () => {
+      Hooks.off("collapseSidebar", onCollapse);
+      document.removeEventListener("keydown", onKeyDown);
+      zone.remove();
+      if (activeHud?.zone === zone) activeHud = null;
+    };
+
+    // Resolve exactly once; a supersede/cancel passes null, Roll passes the gathered input.
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    activeHud = { zone, resolve: finish, cleanup };
+
+    panel.querySelector('[data-action="confirm"]').addEventListener("click", () => finish(readInputs(panel)));
+    panel.querySelector('[data-action="cancel"]').addEventListener("click", () => finish(null));
+
+    attachDialogListeners(panel, Number(rank) || 0);
+
+    // Lightweight slide-in (stands in for the system's Svelte `slide` transition).
+    panel.animate?.(
+      [{ transform: "translateY(8px)", opacity: 0 }, { transform: "none", opacity: 1 }],
+      { duration: 180, easing: "ease-out" },
+    );
+  });
 }
 
-/** Read the Accuracy/Difficulty/Hard values out of the dialog form. */
+/** Read the Accuracy/Difficulty/Hard values out of the prompt form. */
 function readInputs(root) {
   return {
     accuracy: parseInt(root.querySelector("[name=accuracy]").value) || 0,
@@ -148,7 +187,7 @@ function readInputs(root) {
   };
 }
 
-/** Wire the stepper buttons and live pool-size readout inside the dialog. */
+/** Wire the stepper buttons and live pool-size readout inside the prompt. */
 function attachDialogListeners(root, rank) {
   const totalSpan = root.querySelector('[data-readout="total"]');
 

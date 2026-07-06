@@ -1,6 +1,10 @@
 {
   "LMNR.settings.skillDicePool.name": "Dice Pool Skill Resolution",
   "LMNR.settings.skillDicePool.hint": "When enabled, skill checks will roll a number of d6 equal to the skill rank instead of a single d20.",
+  "LMNR.settings.showPilotStress.name": "Always Show Pilot Stress",
+  "LMNR.settings.showPilotStress.hint": "When enabled, a pilot's Stress track is shown and editable on the pilot sheet even before a Bond is added.",
+  "LMNR.pilotStress.label": "Stress",
+  "LMNR.pilotStress.tooltip": "Pilot Stress. Accessable without a Bond via the Motley Narrative Rules module.",
   "LMNR.dialog.windowTitle": "Skill Trigger",
   "LMNR.dialog.accuracy": "Accuracy",
   "LMNR.dialog.difficulty": "Difficulty",
