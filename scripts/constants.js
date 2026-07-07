@@ -15,6 +15,8 @@ export const SETTINGS = {
   SKILL_DICE_POOL: "skillDicePool",
   /** boolean: when true, Pilot Stress is shown/editable even when the pilot has no Bond. */
   SHOW_PILOT_STRESS: "showPilotStress",
+  /** boolean: when true, a fixed set of Pilot Burden trackers is always shown/editable. */
+  SHOW_PILOT_BURDENS: "showPilotBurdens",
 };
 
 /** House-rule constants. */
@@ -69,6 +71,37 @@ export const PILOT_STRESS = {
     BARS_CONTAINER: ".la-damage",
     /** Heat-coloured fill class the native Stress bar uses. */
     BAR_FILL: "la-bckg-bar-heat",
+  },
+};
+
+/**
+ * Always-visible Pilot Burdens (see scripts/pilot-burdens.js).
+ */
+export const PILOT_BURDENS = {
+  /** Actor flag key (under this module's scope) holding `[{name, value}, …]` for the 3 trackers. */
+  FLAG_KEY: "burdens",
+  /** Marker class on the injected section: idempotency guard + removal handle. */
+  MARKER: "lmnr-pilot-burdens",
+  /** The fixed trackers, index-aligned. `max` = clock length (never rendered as editable). */
+  TRACKERS: [{ max: 4 }, { max: 6 }, { max: 10 }],
+  /** Stock (Handlebars) pilot sheet. */
+  STOCK: {
+    /** Narrative tab wrapper; the injected Burdens card is placed here (above the native section). */
+    NARRATIVE_TAB: '.tab.pilot[data-tab="narrative"]',
+    /** The registered Handlebars helper (`pilot.hbs` uses `counter`) that builds the native hex counter. */
+    COUNTER_HELPER: "counter",
+    /** A single hex pip; `data-available="true"` = filled. Click toggles one point. */
+    HEX: ".counter-hex",
+    /** The +/- stepper buttons that flank the hex row. */
+    MINUS_BUTTON: ".clicker-minus-button",
+    PLUS_BUTTON: ".clicker-plus-button",
+    /** The counter header holding the `// name //` span we swap for an editable input. */
+    HEADER: ".lancer-header",
+  },
+  /** Alt sheet (Svelte). */
+  ALT: {
+    /** The Bond mount target — a static container present regardless of bond (Bond.svelte mounts here). */
+    BONDS_CONTAINER: ".la-SVELTE-BONDS",
   },
 };
 

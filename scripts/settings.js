@@ -33,6 +33,17 @@ export function registerSettings() {
     requiresReload: false,
     onChange: () => rerenderOpenSheets(),
   });
+
+  game.settings.register(MODULE_ID, SETTINGS.SHOW_PILOT_BURDENS, {
+    name: "LMNR.settings.showPilotBurdens.name",
+    hint: "LMNR.settings.showPilotBurdens.hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    requiresReload: false,
+    onChange: () => rerenderOpenSheets(),
+  });
 }
 
 /**
@@ -55,6 +66,18 @@ export function isDicePoolEnabled() {
 export function isPilotStressEnabled() {
   try {
     return game.settings.get(MODULE_ID, SETTINGS.SHOW_PILOT_STRESS) === true;
+  } catch (_e) {
+    return true;
+  }
+}
+
+/**
+ * @returns {boolean} true when the fixed Pilot Burden trackers should be shown/editable. Defaults to
+ *   true if the setting has not been registered yet (matches the module default).
+ */
+export function isPilotBurdensEnabled() {
+  try {
+    return game.settings.get(MODULE_ID, SETTINGS.SHOW_PILOT_BURDENS) === true;
   } catch (_e) {
     return true;
   }

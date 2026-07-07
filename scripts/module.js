@@ -9,6 +9,7 @@ import { registerSettings } from "./settings.js";
 import { installSkillFlowOverride, installOtherSkillFlowOverride } from "./skill-flow.js";
 import { registerDisplayHooks } from "./skill-display.js";
 import { registerPilotStressHooks } from "./pilot-stress.js";
+import { registerPilotBurdensHooks } from "./pilot-burdens.js";
 import { registerTahDisplay } from "./tah-display.js";
 
 /** Tracks whether the flow override has been installed, so the ready-fallback doesn't double up. */
@@ -25,6 +26,7 @@ Hooks.once("init", () => {
   registerSettings();
   registerDisplayHooks();
   registerPilotStressHooks();
+  registerPilotBurdensHooks();
 });
 
 Hooks.once("ready", () => {
