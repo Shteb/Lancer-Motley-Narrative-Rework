@@ -3,7 +3,7 @@
  * House-rule behaviour is implemented in scripts/skill-check.js.
  */
 
-/** The module id - must match `id` in module.json. */
+/** The module id — must match `id` in module.json. */
 export const MODULE_ID = "lancer-motley-narrative-rules";
 
 /** Console log prefix for this module. */
@@ -44,33 +44,60 @@ export const LANCER_INTEGRATION = {
 };
 
 /**
- * Always-visible Pilot Stress (see scripts/pilot-stress.js).
+ * Always-visible Pilot Stress (see scripts/pilot-stress.js). Both sheets omit the Stress DOM until a
+ * Bond exists, so we clone the sheet's own HP control and retarget it at `system.bond_state.stress`
+ * rather than maintain a replica. Selectors may drift between system / alt-sheet versions.
  */
 export const PILOT_STRESS = {
   /** The pilot data-model counter object (has `.value` / `.min` / `.max`). */
   PATH: "system.bond_state.stress",
-  /** The update path for persisting a new Stress value. */
+  /** The update path for persisting a new Stress value; also the injected inputs' `name`. */
   VALUE_PATH: "system.bond_state.stress.value",
-  /** Marker class on the injected control: idempotency guard + removal handle. */
+  /** The HP input we clone from, and the anchor we insert next to. Present on both sheets. */
+  HP_VALUE_PATH: "system.hp.value",
+  /** Marker class on every injected element: idempotency guard + removal handle. */
   MARKER: "lmnr-pilot-stress",
   /** Stock (Handlebars) pilot sheet. */
   STOCK: {
     /** Narrative tab wrapper; the injected counter card is placed here (where the bond card sits). */
     NARRATIVE_TAB: '.tab.pilot[data-tab="narrative"]',
-    /** The registered Handlebars helper (`pilot.hbs` line 164) that builds the native hex counter. */
+    /** The registered Handlebars helper (`pilot.hbs`) that builds the native hex counter. */
     COUNTER_HELPER: "generic-counter",
     /** A single hex pip; `data-available="true"` = filled. Click toggles one point. */
     HEX: ".counter-hex",
     /** The +/- stepper buttons that flank the hex row. */
     MINUS_BUTTON: ".clicker-minus-button",
     PLUS_BUTTON: ".clicker-plus-button",
+    /** The header stat cell wrapping the HP input (`compact-stat-edit`); cloned for the readout. */
+    COMPACT_STAT: ".compact-stat",
+    /** The cell's leading icon, and the classes we give the Stress clone's icon. */
+    STAT_ICON: "i",
+    STRESS_ICON: "mdi mdi-brain i--4 i--dark",
+    /** The max readout in a compact stat (the input is `.major`, so it doesn't match). */
+    STAT_MAX: "span.lancer-stat.minor",
   },
-  /** Alt sheet (Svelte). Selectors mirror `StatusBar.svelte` so the injected bar matches the theme. */
+  /** Alt sheet (Svelte). Selectors mirror `StatusBar.svelte`, which is what we clone. */
   ALT: {
-    /** The sidebar "Pilot Bars" container; the injected Stress bar is appended here. */
-    BARS_CONTAINER: ".la-damage",
-    /** Heat-coloured fill class the native Stress bar uses. */
-    BAR_FILL: "la-bckg-bar-heat",
+    /** The bar wrapper cloned from HP (the `StatusBar.svelte` root). */
+    STATUS_BAR: ".la-statusbar",
+    /** HP's overshield / burn sub-bars, dropped from the clone (Stress shows only its own fill). */
+    SUB_BARS: ".la-bar-h-current.-secondary, .la-bar-h-current.-tertiary",
+    /** The primary fill element, whose colour class and `--la-percent` we retarget. */
+    FILL: ".la-bar-h-current",
+    /** HP's fill colour, swapped for the heat colour the native Stress bar uses. */
+    HEALTH_FILL: "la-bckg-bar-health",
+    STRESS_FILL: "la-bckg-bar-heat",
+    /** Classes the native bar swaps onto the fill while its input is focused. */
+    EDIT_FILL: "la-prmy-bar-heat -pulse-bckg-prmy -fast",
+    /** The bar's label span and its `value/max` readout. */
+    LABEL: ".la-damage__span",
+    PROGRESS_SPAN: ".la-bar-h-progress__span",
+    /** Classes toggled between the resting and editing states of the input / readout. */
+    TEXT_HIDDEN: "la-text-transparent",
+    TEXT_SHOWN: "la-text-text",
+    SPAN_HIDDEN: "-visibilityhidden",
+    /** Spacer between stacked sidebar bars (matches the native bonded HP-over-Stress layout). */
+    SPACER: "la-spacer -tiny",
   },
 };
 
@@ -126,8 +153,8 @@ export const ALT_SHEET = {
 };
 
 /**
- * Lancer Automation (`lancer-automations`) Token Action HUD compatibility - badge display + "Other
- * Skill" roll. Re-verify these strings when that module updates.
+ * Lancer Automation (`lancer-automations`) compatibility - Token Action HUD badge display, "Other
+ * Skill" roll, and its own pilot-Stress injection. Re-verify these strings when that module updates.
  */
 export const AUTOMATION = {
   MODULE_ID: "lancer-automations",
@@ -135,6 +162,8 @@ export const AUTOMATION = {
   OTHER_SKILL_PATH: "system.other_skill",
   /** Hook the HUD listens for to rebuild (fired on toggle so the display flips live). */
   REFRESH_HOOK: "forceUpdateTokenActionHud",
+  /** Markers on that module's own injected Stress controls, so we never add a second one. */
+  STRESS_MARKERS: ".la-pilot-stress-bar, .la-pilot-stress-stat",
   /** English label of the skill-trigger sub-column whose badges we rewrite. */
   TRIGGERS_LABEL: "Triggers",
   /** TAH DOM handles for the badge rewrite (see scripts/tah-display.js). */

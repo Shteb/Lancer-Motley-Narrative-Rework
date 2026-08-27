@@ -1,9 +1,21 @@
 /**
- * Always-visible Pilot Stress.
+ * Always-visible Pilot Stress. Both sheets omit the Stress DOM until a Bond exists, so we clone the
+ * sheet's own HP control and retarget it at `system.bond_state.stress`: it inherits the live theme,
+ * and the sheet's form submit persists it. Gated on the setting; no-ops when off.
  */
 
 import { isPilotStressEnabled } from "./settings.js";
-import { PILOT_STRESS } from "./constants.js";
+import { PILOT_STRESS, AUTOMATION } from "./constants.js";
+
+/**
+ * Any Stress control already on the sheet — ours from an earlier pass, a native one, or one the
+ * Lancer Automation module injected. A second input with the same `name` would also break submit.
+ */
+const EXISTING_STRESS_CONTROL = [
+  `.${PILOT_STRESS.MARKER}`,
+  `input[name="${PILOT_STRESS.VALUE_PATH}"]`,
+  AUTOMATION.STRESS_MARKERS,
+].join(", ");
 
 /** Register the pilot-stress hook. Call once from `init`. */
 export function registerPilotStressHooks() {
@@ -32,32 +44,59 @@ function onRenderActorSheet(app, html) {
   const root = rootOf(html);
   if (!root) return;
 
-  // Idempotent per render (fresh V1 render replaces the DOM, so this only guards double-injection).
-  if (root.querySelector(`.${PILOT_STRESS.MARKER}`)) return;
-
-  const narrativeTab = root.querySelector(PILOT_STRESS.STOCK.NARRATIVE_TAB);
-  if (narrativeTab) {
-    injectStockStress(narrativeTab, actor);
-    return;
-  }
-
-  const barsContainer = root.querySelector(PILOT_STRESS.ALT.BARS_CONTAINER);
-  if (barsContainer) {
-    injectAltStress(barsContainer, actor);
-  }
-}
-
-/** Stock sheet: inject the native hex Stress counter (system's `generic-counter` helper) and wire clicks. */
-function injectStockStress(narrativeTab, actor) {
-  const helper = Handlebars.helpers?.[PILOT_STRESS.STOCK.COUNTER_HELPER];
-  if (typeof helper !== "function") return; // system helper unavailable — fail quietly, nothing to show
+  // Idempotent per render, and yields to any other module's Stress control.
+  if (root.querySelector(EXISTING_STRESS_CONTROL)) return;
 
   const counter = foundry.utils.getProperty(actor, PILOT_STRESS.PATH);
   if (!counter) return;
 
+  const hpInput = root.querySelector(`input[name="${PILOT_STRESS.HP_VALUE_PATH}"]`);
+
+  // Alt sheet: HP is a Svelte `StatusBar` in the sidebar.
+  const hpBar = hpInput?.closest(PILOT_STRESS.ALT.STATUS_BAR);
+  if (hpBar) {
+    injectAltStressBar(hpBar, counter);
+    return;
+  }
+
+  // Stock sheet: a readout beside HP in the header, plus the native hex track in the narrative tab.
+  const hpStat = hpInput?.closest(PILOT_STRESS.STOCK.COMPACT_STAT);
+  if (hpStat) injectStockHeaderStress(hpStat, counter);
+
+  const narrativeTab = root.querySelector(PILOT_STRESS.STOCK.NARRATIVE_TAB);
+  if (narrativeTab) injectStockStressCounter(narrativeTab, actor, counter);
+}
+
+/** Stock sheet header: clone the HP `compact-stat` cell, swap its icon, and retarget its input at Stress. */
+function injectStockHeaderStress(hpStat, counter) {
+  const stat = hpStat.cloneNode(true);
+  const input = stat.querySelector(`input[name="${PILOT_STRESS.HP_VALUE_PATH}"]`);
+  if (!input) return; // no input in the clone — a dead cell is worse than nothing
+
+  stat.classList.add(PILOT_STRESS.MARKER);
+  stat.setAttribute("data-tooltip", game.i18n.localize("LMNR.pilotStress.tooltip"));
+
+  const icon = stat.querySelector(PILOT_STRESS.STOCK.STAT_ICON);
+  if (icon) icon.className = PILOT_STRESS.STOCK.STRESS_ICON;
+
+  input.name = PILOT_STRESS.VALUE_PATH;
+  input.value = String(Number(counter.value) || 0);
+
+  const maxSpan = [...stat.querySelectorAll(PILOT_STRESS.STOCK.STAT_MAX)].pop();
+  if (maxSpan) maxSpan.textContent = String(maxOf(counter));
+
+  normaliseOnChange(input, counter);
+  hpStat.after(stat);
+}
+
+/** Stock sheet: inject the native hex Stress counter (system's `generic-counter` helper) and wire clicks. */
+function injectStockStressCounter(narrativeTab, actor, counter) {
+  const helper = Handlebars.helpers?.[PILOT_STRESS.STOCK.COUNTER_HELPER];
+  if (typeof helper !== "function") return; // system helper unavailable — fail quietly, nothing to show
+
   let markup;
   try {
-    markup = helper("Stress", counter, PILOT_STRESS.PATH);
+    markup = helper(game.i18n.localize("LMNR.pilotStress.label"), counter, PILOT_STRESS.PATH);
   } catch (_e) {
     return;
   }
@@ -73,11 +112,11 @@ function injectStockStress(narrativeTab, actor) {
   if (topCard) topCard.after(wrapper);
   else narrativeTab.prepend(wrapper);
 
-  wireStockStress(wrapper, actor);
+  wireStockStressCounter(wrapper, actor);
 }
 
 /** Replicate the system's counter interaction (item.ts handleCounterInteraction) for our injected hexes. */
-function wireStockStress(wrapper, actor) {
+function wireStockStressCounter(wrapper, actor) {
   for (const hex of wrapper.querySelectorAll(PILOT_STRESS.STOCK.HEX)) {
     hex.addEventListener("click", ev => {
       ev.stopPropagation();
@@ -90,73 +129,117 @@ function wireStockStress(wrapper, actor) {
   if (plus) plus.addEventListener("click", ev => { ev.stopPropagation(); updateStress(actor, +1); });
 }
 
-/** Alt sheet: append a `la-*` replica of the Stress `StatusBar` to the "Pilot Bars" container and wire it. */
-function injectAltStress(barsContainer, actor) {
-  const counter = foundry.utils.getProperty(actor, PILOT_STRESS.PATH);
-  if (!counter) return;
+/**
+ * Alt sheet: clone the sidebar's HP `StatusBar` and retarget it at Stress — drop HP's overshield /
+ * burn sub-bars, recolour the fill, relabel, rename the input.
+ */
+function injectAltStressBar(hpBar, counter) {
+  const bar = hpBar.cloneNode(true);
+  const input = bar.querySelector(`input[name="${PILOT_STRESS.HP_VALUE_PATH}"]`);
+  if (!input) return; // no input in the clone — a read-only bar is worse than nothing
+
+  bar.classList.add(PILOT_STRESS.MARKER);
+  for (const sub of bar.querySelectorAll(PILOT_STRESS.ALT.SUB_BARS)) sub.remove();
 
   const value = Number(counter.value) || 0;
-  const max = Number.isFinite(counter.max) ? counter.max : 8;
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  const label = game.i18n.localize("LMNR.pilotStress.label");
-  const tooltip = game.i18n.localize("LMNR.pilotStress.tooltip");
+  const max = maxOf(counter);
 
-  const row = document.createElement("div");
-  row.className = `${PILOT_STRESS.MARKER} la-flexrow -gap2`;
-  row.innerHTML = `
-    <div class="la-visuals -flex5">
-      <div class="la-statusbar la-flexrow -fontsizemedium -gap2 la-text-text" title="${tooltip}">
-        <span class="la-damage__span -fontsizesmall -flexbasis13 -textalignright">${label}</span>
-        <div class="la-bar-h la-bckg-darken-3 -flex1 -positionrelative -widthfull -height3 -overflowhidden clipped">
-          <div class="la-bar-h-progress la-flexrow -widthfull -heightfull">
-            <input type="number" class="la-bar-h-progress__input -widthfull -heightfull -positionrelative -textaligncenter la-text-transparent"
-              name="${PILOT_STRESS.VALUE_PATH}" data-dtype="Number" value="${value}">
-            <span class="la-bar-h-progress__span -lineheight3 -positionabsolute -pointerdisable">${value}/${max}</span>
-          </div>
-          <div class="la-bar-h-progress la-bar-h-current -positionabsolute -top0 -heightfull ${PILOT_STRESS.ALT.BAR_FILL}"
-            style="--la-percent:${pct}%"></div>
-        </div>
-      </div>
-    </div>`;
+  const fill = bar.querySelector(PILOT_STRESS.ALT.FILL);
+  if (fill) {
+    fill.classList.remove(PILOT_STRESS.ALT.HEALTH_FILL);
+    fill.classList.add(PILOT_STRESS.ALT.STRESS_FILL);
+    fill.style.setProperty("--la-percent", `${max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0}%`);
+  }
 
-  barsContainer.appendChild(row);
-  wireAltStress(row, value, actor);
+  const label = bar.querySelector(PILOT_STRESS.ALT.LABEL);
+  if (label) {
+    label.textContent = game.i18n.localize("LMNR.pilotStress.label");
+    // Only when the alt sheet rendered a tooltip at all (it's a per-sheet setting).
+    if (label.hasAttribute("data-tooltip")) {
+      label.setAttribute("data-tooltip", game.i18n.localize("LMNR.pilotStress.tooltip"));
+    }
+  }
+
+  input.name = PILOT_STRESS.VALUE_PATH;
+  input.value = String(value);
+
+  const progress = bar.querySelector(PILOT_STRESS.ALT.PROGRESS_SPAN);
+  if (progress) progress.textContent = `${value}/${max}`;
+
+  wireAltEditState(input, fill, progress);
+  normaliseOnChange(input, counter, { relative: true });
+
+  // Stack under HP, spaced like the native bonded layout.
+  const spacer = document.createElement("div");
+  spacer.className = `${PILOT_STRESS.ALT.SPACER} ${PILOT_STRESS.MARKER}`;
+  hpBar.after(spacer, bar);
 }
 
-/** Wire the injected alt input: focus/blur toggles the transparent overlay; change persists the value. */
-function wireAltStress(row, previous, actor) {
-  const input = row.querySelector("input");
-  const span = row.querySelector(".la-bar-h-progress__span");
-  if (!input) return;
+/** Replay `StatusBar.svelte`'s editing state, which the clone loses along with its Svelte bindings. */
+function wireAltEditState(input, fill, progress) {
+  const editFill = PILOT_STRESS.ALT.EDIT_FILL.split(" ");
 
   input.addEventListener("focus", () => {
     input.select();
-    input.classList.remove("la-text-transparent");
-    span?.classList.add("-visibilityhidden");
+    input.classList.remove(PILOT_STRESS.ALT.TEXT_HIDDEN);
+    input.classList.add(PILOT_STRESS.ALT.TEXT_SHOWN);
+    progress?.classList.add(PILOT_STRESS.ALT.SPAN_HIDDEN);
+    fill?.classList.remove(PILOT_STRESS.ALT.STRESS_FILL);
+    fill?.classList.add(...editFill);
   });
+
   input.addEventListener("blur", () => {
-    input.classList.add("la-text-transparent");
-    span?.classList.remove("-visibilityhidden");
-  });
-  input.addEventListener("change", () => {
-    const raw = input.value?.trim() ?? "";
-    let next = previous;
-    if (raw.startsWith("+")) next = previous + Number(raw.slice(1));
-    else if (raw.startsWith("-")) next = previous - Number(raw.slice(1));
-    else if (raw) next = Number(raw);
-    if (!Number.isFinite(next)) next = previous;
-    updateStress(actor, next, { absolute: true });
+    input.classList.remove(PILOT_STRESS.ALT.TEXT_SHOWN);
+    input.classList.add(PILOT_STRESS.ALT.TEXT_HIDDEN);
+    progress?.classList.remove(PILOT_STRESS.ALT.SPAN_HIDDEN);
+    fill?.classList.remove(...editFill);
+    fill?.classList.add(PILOT_STRESS.ALT.STRESS_FILL);
   });
 }
 
-/** Persist a Stress change, clamped to the field's bounds. `amount` is a delta unless `absolute` is set. */
-function updateStress(actor, amount, { absolute = false } = {}) {
-  const s = foundry.utils.getProperty(actor, PILOT_STRESS.PATH) ?? {};
-  const min = Number.isFinite(s.min) ? s.min : 0;
-  const max = Number.isFinite(s.max) ? s.max : 8;
-  const current = Number(s.value) || 0;
-  let next = absolute ? amount : current + amount;
-  next = Math.max(min, Math.min(max, next));
+/**
+ * Point an injected input's bounds at Stress and clamp it in place on `change`, then let the event
+ * bubble so the sheet's own form submit writes the value. `relative` accepts the alt sheet's `+n` /
+ * `-n` entry; the stock header input is `type="number"`, so it takes absolute values only.
+ */
+function normaliseOnChange(input, counter, { relative = false } = {}) {
+  // Inherited from HP, these would otherwise cap the input short of the Stress track.
+  if (input.hasAttribute("min")) input.min = String(minOf(counter));
+  if (input.hasAttribute("max")) input.max = String(maxOf(counter));
+
+  input.addEventListener("change", () => {
+    const current = Number(counter.value) || 0;
+    const raw = String(input.value).trim();
+
+    let next = current;
+    if (relative && raw.startsWith("+")) next = current + Number(raw.slice(1));
+    else if (relative && raw.startsWith("-")) next = current - Number(raw.slice(1));
+    else if (raw) next = Number(raw);
+    if (!Number.isFinite(next)) next = current;
+
+    input.value = String(clampStress(next, counter));
+  });
+}
+
+/** The counter's bounds, defaulting to the pilot model's `0` / `8`. */
+function minOf(counter) {
+  return Number.isFinite(counter?.min) ? counter.min : 0;
+}
+
+function maxOf(counter) {
+  return Number.isFinite(counter?.max) ? counter.max : 8;
+}
+
+/** Clamp to the counter's bounds; neither the data model nor the sheet form does this for us. */
+function clampStress(value, counter) {
+  return Math.max(minOf(counter), Math.min(maxOf(counter), Math.round(value)));
+}
+
+/** Persist a Stress delta from the hex pips, which have no form input of their own. */
+function updateStress(actor, delta) {
+  const counter = foundry.utils.getProperty(actor, PILOT_STRESS.PATH) ?? {};
+  const current = Number(counter.value) || 0;
+  const next = clampStress(current + delta, counter);
   if (next === current) return;
   return actor.update({ [PILOT_STRESS.VALUE_PATH]: next });
 }
