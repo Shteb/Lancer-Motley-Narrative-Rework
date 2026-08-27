@@ -198,15 +198,11 @@ function wireAltEditState(input, fill, progress) {
 }
 
 /**
- * Point an injected input's bounds at Stress and clamp it in place on `change`, then let the event
- * bubble so the sheet's own form submit writes the value. `relative` accepts the alt sheet's `+n` /
- * `-n` entry; the stock header input is `type="number"`, so it takes absolute values only.
+ * Clamp an injected input in place on `change`, then let it bubble so the sheet's own form submit
+ * writes the value. `relative` accepts the alt sheet's `+n` / `-n` entry; the stock header input is
+ * `type="number"`, so it takes absolute values only — as does the HP input it was cloned from.
  */
 function normaliseOnChange(input, counter, { relative = false } = {}) {
-  // Inherited from HP, these would otherwise cap the input short of the Stress track.
-  if (input.hasAttribute("min")) input.min = String(minOf(counter));
-  if (input.hasAttribute("max")) input.max = String(maxOf(counter));
-
   input.addEventListener("change", () => {
     const current = Number(counter.value) || 0;
     const raw = String(input.value).trim();
@@ -221,18 +217,15 @@ function normaliseOnChange(input, counter, { relative = false } = {}) {
   });
 }
 
-/** The counter's bounds, defaulting to the pilot model's `0` / `8`. */
-function minOf(counter) {
-  return Number.isFinite(counter?.min) ? counter.min : 0;
-}
-
+/** The counter's upper bound, defaulting to the pilot model's `max: 8`. */
 function maxOf(counter) {
   return Number.isFinite(counter?.max) ? counter.max : 8;
 }
 
 /** Clamp to the counter's bounds; neither the data model nor the sheet form does this for us. */
 function clampStress(value, counter) {
-  return Math.max(minOf(counter), Math.min(maxOf(counter), Math.round(value)));
+  const min = Number.isFinite(counter?.min) ? counter.min : 0;
+  return Math.max(min, Math.min(maxOf(counter), Math.round(value)));
 }
 
 /** Persist a Stress delta from the hex pips, which have no form input of their own. */
